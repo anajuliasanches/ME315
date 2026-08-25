@@ -1,0 +1,146 @@
+---
+title: " ME315: LAB 02"
+author: 'Ana Júlia Sanches de Araujo'
+format: pdf
+editor: visual
+---
+
+# 1. Quais são as estatísticas suficientes para a determinação do percentual de vôos atrasados na chegada (ARRIVAL_DELAY > 10)?
+É necesssário extrair apenas dois números: o total de voos daquele empresa aérea no lote e os voos atrasados maior que 10
+
+#2. Carregar o pacote e criar a função getStats
+```{r}
+
+library(dplyr)
+
+getStats <- function(input, pos) {
+  
+  input %>%
+    # a. Filtra as companhias aéreas específicas
+    filter(AIRLINE %in% c("AA", "DL", "UA", "US")) %>%
+    
+    # b. Remove valores faltantes no campo de interesse
+    filter(!is.na(ARRIVAL_DELAY)) %>%
+    
+    # c. Agrupa o conjunto de dados por dia, mês e cia. aérea
+    group_by(DAY, MONTH, AIRLINE) %>%
+    
+    # d. Determina as estatísticas suficientes
+    summarise(
+      voos_totais = n(),
+      atrasos_maior_10 = sum(ARRIVAL_DELAY > 10),
+      .groups = "drop" # Remove o agrupamento interno
+    )
+} # A CHAVE DEVE FECHAR EXATAMENTE AQUI!
+
+library(readr)
+
+# 3. Lendo o arquivo flights.csv em lotes
+resultados_finais <- read_csv_chunked(
+  file = "flights.csv",
+  chunk_size = 100000,                        # 3a. Tamanho do lote
+  callback = DataFrameCallback$new(getStats), # 3b. Instanciando DataFrames
+  col_types = cols_only(                      # 3c. Lendo apenas colunas de interesse
+    DAY = col_integer(),
+    MONTH = col_integer(),
+    AIRLINE = col_character(),
+    ARRIVAL_DELAY = col_double()
+  )
+)
+
+# Exibe o tibble com o resultado final processado
+resultados_finais
+```
+
+```{r}
+library(readr)
+
+# 3. Lendo o arquivo flights.csv.zip em lotes
+resultados_finais <- read_csv_chunked(
+  file = "flights.csv",
+  chunk_size = 100000,                        # 3a. Tamanho do lote de 100 mil registros
+  callback = DataFrameCallback$new(getStats), # 3b. Instanciando DataFrames com a sua função getStats
+  col_types = cols_only(                      # 3c. Lendo estritamente as colunas de interesse
+    DAY = col_integer(),
+    MONTH = col_integer(),
+    AIRLINE = col_character(),
+    ARRIVAL_DELAY = col_double()
+  )
+)
+
+# Exibe o tibble com o resultado final processado
+resultados_finais
+```
+
+```{r}
+# 4. Função computeStats
+computeStats <- function(df) {
+  df %>%
+    # Agrupa caso algum dia tenha sido cortado no meio entre dois lotes
+    group_by(AIRLINE, MONTH, DAY) %>%
+    summarise(
+      voos_totais = sum(voos_totais),
+      atrasos_maior_10 = sum(atrasos_maior_10),
+      .groups = "drop"
+    ) %>%
+    # Calcula o percentual e cria as colunas exatas que o professor pediu
+    mutate(
+      Cia = AIRLINE,
+      # Junta ano (2015), mês e dia no formato exigido
+      Data = as.Date(paste("2015", MONTH, DAY, sep = "-")),
+      Perc = atrasos_maior_10 / voos_totais
+    ) %>%
+    # Seleciona apenas as 3 colunas exigidas
+    select(Cia, Data, Perc)
+}
+
+# Executa a função no objeto da questão 3
+stats_finais <- computeStats(resultados_finais)
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# 5b. Definindo a paleta de cores gradiente
+pal <- scale_fill_gradient(low = "#4575b4", high = "#d73027")
+
+# 5c. Criando a função baseCalendario (Versão Manual com ggplot2)
+baseCalendario <- function(stats, cia_interesse) {
+  
+  # Filtra a companhia e extrai o Mês e o Dia separadamente para o gráfico
+  sub_stats <- stats %>% 
+    filter(Cia == cia_interesse) %>%
+    mutate(
+      Mes = format(Data, "%m"),
+      Dia = as.numeric(format(Data, "%d"))
+    )
+  
+  # Monta o mapa de calor usando o ggplot2 base
+  ggplot(sub_stats, aes(x = Dia, y = Mes, fill = Perc)) +
+    geom_tile(color = "white") +
+    scale_y_discrete(limits = rev) + # Inverte para Janeiro ficar no topo
+    theme_minimal() +
+    labs(x = "Dia do Mês", y = "Mês")
+}
+
+# 5d. Executando a função para as 4 companhias
+cAA <- baseCalendario(stats_finais, "AA")
+cDL <- baseCalendario(stats_finais, "DL")
+cUA <- baseCalendario(stats_finais, "UA")
+cUS <- baseCalendario(stats_finais, "US")
+
+# 5e. Apresentando os gráficos de calor com os devidos títulos
+cAA + pal + ggtitle("American Airlines (AA) - Atrasos 2015")
+cDL + pal + ggtitle("Delta Air Lines (DL) - Atrasos 2015")
+cUA + pal + ggtitle("United Airlines (UA) - Atrasos 2015")
+cUS + pal + ggtitle("US Airways (US) - Atrasos 2015")
+```
+
+```{r}
+Sys.setenv(TZ = "America/Sao_Paulo")
+Sys.time()
+```
+
