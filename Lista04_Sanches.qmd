@@ -1,0 +1,97 @@
+---
+title: "Lista 04 Sanches"
+author: "Ana Júlia Sanches de Araujo"
+date: "2026-09-10"
+output: pdf_document
+---
+
+```{r}
+# Q1. Carregue os pacotes
+library(readxl)
+library(tidyverse)
+```
+
+```{r}
+# Q2. Variável com o caminho e verificação de existência
+fname <- "WDIEXCEL.xlsx"
+file.exists(fname) # Deve retornar TRUE
+```
+
+```{r}
+# Q3. Ler a planilha "Country"
+countries <- read_excel(fname, sheet = "Country")
+```
+
+```{r}
+# Q4. Manter apenas o Brasil e outros 4 países
+# Usando os códigos dos países (Country Code) para garantir precisão no filtro
+countries <- countries %>%
+  filter(`Country Code` %in% c("BRA", "ARG", "CHL", "COL", "PER"))
+```
+
+```{r}
+# Q5. Ler a planilha "Data"
+WDI <- read_excel(fname, sheet = "Data")
+```
+
+```{r}
+# Q6. Selecionar apenas as colunas de interesse
+# As crases (`) são necessárias pois as variáveis possuem espaços no nome e iniciam com números
+WDI <- WDI %>%
+  select(`Country Code`, `Indicator Code`, `1960`:`2018`)
+```
+
+```{r}
+# Q7. Transformar para o formato tidy (pivotagem)
+# Os anos estão nas colunas, então precisamos "derretê-los" (pivot_longer) para linhas
+WDI <- WDI %>%
+  pivot_longer(
+    cols = `1960`:`2018`, 
+    names_to = "YEAR", 
+    values_to = "Value"
+  )
+```
+
+
+```{r}
+# Q8. Converter a coluna YEAR para inteiro
+WDI <- WDI %>%
+  mutate(YEAR = as.integer(YEAR))
+```
+
+
+```{r}
+# Q9. Juntar as bases, pivotar os indicadores e selecionar colunas
+# Como precisamos da coluna 'Short Name' (que está em countries), um 'inner_join' 
+# atua perfeitamente: ele traz as colunas novas (mutating join) e, ao mesmo tempo, 
+# filtra o WDI apenas para os 5 países que deixamos em 'countries' (filtering join).
+WDI <- WDI %>%
+  inner_join(countries, by = "Country Code") %>%
+  pivot_wider(names_from = `Indicator Code`, values_from = Value) %>%
+  select(`Country Code`, `Short Name`, YEAR, SP.DYN.CBRT.IN)
+```
+
+```{r}
+# Q10. Ordenar por país e depois por ano
+WDI <- WDI %>%
+  arrange(`Short Name`, YEAR)
+```
+
+```{r}
+# Q11. Visualização com ggplot2
+ggplot(WDI, aes(x = YEAR, y = SP.DYN.CBRT.IN, color = `Short Name`)) +
+  geom_line(size = 1) +
+  theme_minimal() +
+  labs(
+    title = "Evolução do Indicador SP.DYN.CBRT.IN",
+    x = "Ano",
+    y = "SP.DYN.CBRT.IN",
+    color = "País"
+  )
+```
+```{r}
+Sys.setenv(TZ = "America/Sao_Paulo")
+Sys.time()
+```
+
+
