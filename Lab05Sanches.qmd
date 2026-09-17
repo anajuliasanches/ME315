@@ -1,0 +1,129 @@
+---
+title: "Untitled"
+author: "Ana Julia Sanches de Araujo"
+date: "2026-09-17"
+format: pdf
+---
+
+```{r}
+# Carregue os pacotes necessários
+library(tidyverse)
+library(leaflet)
+
+airports <- read_csv("airports.csv")
+
+# 1. Definindo a função com os argumentos exigidos
+analisa_aeronave <- function(tail_number, arquivo) {
+  
+  # ==========================================
+  # PARTE A: LEITURA EM LOTES E FILTRAGEM
+  # ==========================================
+  
+  # Cria a "receita" para filtrar apenas o avião desejado em cada lote
+  filtra_aviao <- function(df, pos) {
+    df %>%
+      filter(TAIL_NUMBER == tail_number)
+  }
+  
+  # Executa a leitura do arquivo grande por partes (chunks)
+  voos_filtrados <- read_csv_chunked(
+    file = arquivo,
+    chunk_size = 1000000,
+    callback = DataFrameCallback$new(filtra_aviao)
+  )
+  
+  # ==========================================
+  # PARTE B: ORDENAÇÃO E TRATAMENTO DA TABELA
+  # ==========================================
+  
+  voos_tratados <- voos_filtrados %>%
+    # Ordena os voos cronologicamente de maneira linear no tempo
+    arrange(MONTH, DAY, SCHEDULED_DEPARTURE) %>%
+    
+    # Remove linhas com valores faltantes que podem bugar o mapa
+    filter(!is.na(ORIGIN_AIRPORT) & !is.na(DESTINATION_AIRPORT)) %>%
+    
+    # Calcula uma estatística de interesse: Velocidade Média (Milhas por minuto)
+    # Evita divisão por zero caso o AIR_TIME seja NA ou zero
+    mutate(velocidade_media = ifelse(AIR_TIME > 0, DISTANCE / AIR_TIME, 0))
+  
+  # Adiciona as coordenadas exatas do aeroporto de ORIGEM
+  voos_com_origem <- voos_tratados %>%
+    left_join(airports, by = c("ORIGIN_AIRPORT" = "IATA_CODE")) %>%
+    rename(lat_origem = LATITUDE, lon_origem = LONGITUDE)
+  
+  # Adiciona as coordenadas exatas do aeroporto de DESTINO
+  tabela_final <- voos_com_origem %>%
+    left_join(airports, by = c("DESTINATION_AIRPORT" = "IATA_CODE")) %>%
+    rename(lat_destino = LATITUDE, lon_destino = LONGITUDE)
+  
+  # ==========================================
+  # PARTE C: DESENHANDO O MAPA
+  # ==========================================
+  
+  # Inicia o mapa base
+  mapa_trajeto <- leaflet(data = tabela_final) %>%
+    addTiles()
+  
+  # O leaflet não desenha segmentos individuais com addPolylines facilmente de forma nativa.
+  # Para aplicar a espessura baseada na velocidade, adicionamos cada trajeto (linha por linha)
+  for (i in 1:nrow(tabela_final)) {
+    linha <- tabela_final[i, ]
+    
+    # Só desenha se as coordenadas existirem
+    if (!is.na(linha$lat_origem) && !is.na(linha$lat_destino)) {
+      mapa_trajeto <- mapa_trajeto %>%
+        addPolylines(
+          lng = c(linha$lon_origem, linha$lon_destino),
+          lat = c(linha$lat_origem, linha$lat_destino),
+          
+          # A espessura da linha (weight) reflete a velocidade média do voo
+          weight = linha$velocidade_media / 2, 
+          
+          # Estética básica para visualizar melhor
+          color = "blue",
+          opacity = 0.6,
+          
+          # Adiciona um balão interativo ao clicar na linha
+          popup = paste("Origem:", linha$ORIGIN_AIRPORT, 
+                        "<br>Destino:", linha$DESTINATION_AIRPORT,
+                        "<br>Data:", linha$DAY, "/", linha$MONTH,
+                        "<br>Velocidade:", round(linha$velocidade_media, 2), "milhas/min")
+        )
+    }
+  }
+  
+  # ==========================================
+  # PARTE D: RETORNO DA FUNÇÃO
+  # ==========================================
+  
+  # Retorna uma lista nomeada conforme exigido no roteiro
+  resultado <- list(
+    tabela = tabela_final,
+    grafico = mapa_trajeto
+  )
+  
+  return(resultado)
+}
+```
+
+```{r}
+# Lembre-se de colocar o caminho correto onde o arquivo flights.csv está salvo
+meu_teste <- analisa_aeronave(
+  tail_number = "N431WN", 
+  arquivo = "flights.csv" 
+)
+
+# Para ver a tabela:
+# View(meu_teste$tabela)
+
+# Para ver o mapa:
+# meu_teste$grafico
+```
+
+![Trajeto do Voo](mapa_voo.png)
+
+```{r}
+Sys.setenv(TZ = "America/Sao_Paulo")
+Sys.time()
+```
