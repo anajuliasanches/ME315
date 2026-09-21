@@ -1,0 +1,125 @@
+---
+title: "Lab06_Sanches"
+author: "Ana Júlia Sanches de Araujo"
+format: pdf
+editor: visual
+---
+
+```{r}
+# Carregando os pacotes
+library(DBI)
+library(RSQLite)
+library(dplyr)
+```
+
+```{r}
+# 1. Baixe o arquivo disco.db e armazene na variável path o caminho completo (pasta) na qual o arquivo foi gravado. Utilize o comando file.path() para combinar a variável path com o nome do arquivo (disco.db) e obter o nome do arquivo com seu respectivo caminho. Armazene este resultado na variável fname.
+
+path <- "/cloud/project"
+fname <- file.path(path, "disco.db")
+
+```
+
+```{r}
+# 2. Utilizando o pacote RSQLite, conecte-se ao arquivo de banco de dados. Armazene a conexão na variável conn.
+
+# Estabelece a conexão com o SQLite
+conn <- dbConnect(RSQLite::SQLite(), dbname = fname)
+```
+
+```{r}
+# 3. Liste as tabelas existentes no banco de dados.
+# Lista todas as tabelas contidas no banco de dados
+dbListTables(conn)
+
+```
+
+```{r}
+## 4. Identifique os nomes de todas as colunas existentes na tabela customers.
+# Lista o nome de todas as colunas da tabela 'customers'
+dbListFields(conn, "customers")
+```
+
+```{r}
+## 5. Utilizando apenas SQLite, com o apoio do comando dbGetQuery, identifique quantos clientes estão atualmente cadastrados neste banco de dados.
+query_q5 <- "
+  SELECT COUNT(*) AS total_clientes 
+  FROM customers
+"
+dbGetQuery(conn, query_q5)
+
+```
+
+```{r}
+## 6. Utilizando apenas SQLite, identifique o número de países diferentes em que moram os clientes encontrados acima.
+query_q6 <- "
+  SELECT COUNT(DISTINCT Country) AS total_paises 
+  FROM customers
+"
+dbGetQuery(conn, query_q6)
+```
+
+```{r}
+## 7. Utilizando apenas SQLite, quantos clientes existem por país? A tabela resultante deve conter o nome do país e a respectiva contagem, além de ser ordenada de maneira decrescente pela referida contagem.
+query_q7 <- "
+  SELECT Country, COUNT(*) AS qtd_clientes
+  FROM customers
+  GROUP BY Country
+  ORDER BY qtd_clientes DESC
+"
+dbGetQuery(conn, query_q7)
+```
+
+```{r}
+## 8. Quais são os 5 países com mais clientes registrados? Use apenas SQLite.
+query_q8 <- "
+  SELECT Country, COUNT(*) AS qtd_clientes
+  FROM customers
+  GROUP BY Country
+  ORDER BY qtd_clientes DESC
+  LIMIT 5
+"
+dbGetQuery(conn, query_q8)
+
+```
+
+```{r}
+## 9.Quais são os países registrados que possuem apenas 6 letras no nome?
+
+query_q9 <- "
+  SELECT DISTINCT Country
+  FROM customers
+  WHERE Country LIKE '______'
+"
+
+dbGetQuery(conn, query_q9)
+```
+
+```{r}
+## 10, Quais foram as músicas compradas por clientes brasileiros?
+
+query_q10 <- "
+  SELECT DISTINCT t.Name AS Nome_Musica
+  FROM customers c
+  INNER JOIN invoices i ON c.CustomerId = i.CustomerId
+  INNER JOIN invoice_items ii ON i.InvoiceId = ii.InvoiceId
+  INNER JOIN tracks t ON ii.TrackId = t.TrackId
+  WHERE c.Country = 'Brazil'
+  ORDER BY t.Name
+"
+dbGetQuery(conn, query_q10)
+```
+
+```{r}
+## 11. Desconecte do banco de dados.
+dbDisconnect(conn)
+```
+
+```{r}
+#| echo: false
+data_hora_atual <- format(Sys.time(), "%d/%m/%Y %H:%M:%S")
+cat("Lab feito em:", data_hora_atual)
+```
+
+
+
