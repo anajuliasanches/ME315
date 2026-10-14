@@ -1,0 +1,104 @@
+---
+title: "Lab08_Sanches.qmd"
+author: "Ana Julia Sanches de Araujo"
+format: html
+editor: visual
+---
+
+```{r}
+# Carregado o pacote polars
+library(polars)
+```
+
+```{r}
+file.exists("title.basics0.tsv.gz")
+```
+
+```{r}
+library(polars)
+
+# 1. Informações básicas dos títulos
+basics <- pl$read_csv(
+  "title.basics0.tsv.gz",
+  separator = "\t",
+  null_values = "\\N"
+)
+
+# 2. Notas e votos
+ratings <- pl$read_csv(
+  "title.ratings.tsv.gz",
+  separator = "\t",
+  null_values = "\\N"
+)
+
+# 3. Elenco e equipe técnica
+principals <- pl$read_csv(
+  "title.principals0.tsv.gz",
+  separator = "\t",
+  null_values = "\\N"
+)
+```
+
+1.  Quais são os 5 filmes com as maiores notas (averageRating)? Apresente uma solução capaz de desempatar os filmes baseando-se no número de votos recebidos.
+
+```{r}
+q1_resposta <- basics$
+  filter(pl$col("titleType") == "movie")$
+  join(ratings, on = "tconst", how = "inner")$
+  sort(
+    "averageRating", "numVotes",
+    descending = c(TRUE, TRUE)
+  )$
+  select("primaryTitle", "averageRating", "numVotes")$
+  head(5)
+
+q1_resposta
+```
+
+2.  Qual é o gênero mais frequente entre os filmes com nota maior que 8?
+
+```{r}
+q2_resposta <- basics$
+  filter(pl$col("titleType") == "movie")$
+  join(ratings, on = "tconst", how = "inner")$
+  filter(
+    (pl$col("averageRating") > 8) & 
+    pl$col("genres")$is_not_null()
+  )$
+  with_columns(
+    pl$col("genres")$str$split(",")
+  )$
+  explode("genres")$
+  group_by("genres")$
+  agg(
+    pl$len()$alias("frequencia")
+  )$
+  sort("frequencia", descending = TRUE)$
+  head(1)
+
+q2_resposta
+```
+
+3.  Quais são os 3 atores/atrizes que mais participaram de filmes com nota maior que 7.
+
+```{r}
+filmes_bons <- basics$
+  filter(pl$col("titleType") == "movie")$
+  join(ratings, on = "tconst", how = "inner")$
+  filter(pl$col("averageRating") > 7.5)
+
+atores_atrizes <- principals$filter(
+  (pl$col("category") == "actor") | (pl$col("category") == "actress")
+)
+
+q3_resposta <- atores_atrizes$
+  join(filmes_bons, on = "tconst", how = "inner")$
+  group_by("nconst")$
+  agg(
+    pl$len()$alias("qtd_filmes")
+  )$
+  sort("qtd_filmes", descending = TRUE)$
+  head(3)
+
+q3_resposta
+```
